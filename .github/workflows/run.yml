@@ -1,69 +1,46 @@
-name: PDF to Images
-
+name: PDF转图片
 on:
   workflow_dispatch:
     inputs:
       pdf_url:
-        description: 'PDF 文件的直接下载链接'
         required: true
-        type: string
+        description: "PDF文件URL"
       student_id:
-        description: '学生学号（用于创建子文件夹）'
         required: true
-        type: string
+        description: "学生学号"
 
 jobs:
-  convert:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: 检出仓库代码
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          # 强制将代码检出到工作流的根目录，避免嵌套
-          path: ./
           fetch-depth: 0
 
-      - name: 安装系统依赖（poppler-utils）
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y poppler-utils
+      - name: 安装系统依赖
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
 
-      - name: 设置 Python 环境
+      - name: 设置Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 安装 Python 依赖
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: 安装Python包
+        run: pip install -r requirements.txt
 
-      - name: 调试：查看当前文件位置
-        run: |
-          echo "当前工作目录："
-          pwd
-          echo "目录下的所有文件："
-          ls -la
+      - name: 执行PDF转换
+        run: python convert.py
+        env:
+          PDF_URL: ${{ github.event.inputs.pdf_url }}
+          STUDENT_ID: ${{ github.event.inputs.student_id }}
 
-      - name: 运行 PDF 转换脚本
-        run: |
-          # 先尝试当前目录
-          if [ -f "convert.py" ]; then
-            echo "在当前目录找到 convert.py，直接运行"
-            python convert.py "${{ github.event.inputs.pdf_url }}" "${{ github.event.inputs.student_id }}"
-          else
-            # 如果找不到，尝试上一级目录
-            echo "当前目录未找到，尝试上一级目录"
-            cd ..
-            echo "切换到目录：$(pwd)"
-            ls -la
-            python convert.py "${{ github.event.inputs.pdf_url }}" "${{ github.event.inputs.student_id }}"
-          fi
-
-      - name: 提交并推送生成的图片
+      - name: 提交并推送图片
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull origin main --no-rebase
           git add images/
-          git commit -m "auto save image" || echo "No changes to commit"
-          git push
+          git commit -m "auto save image" || true
+          git push origin main || true
