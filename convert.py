@@ -1,42 +1,33 @@
 import os
-import sys
 import requests
 from pdf2image import convert_from_bytes
 
-def pdf_to_images_by_url(pdf_url, student_id):
-    # ===================== 关键修复 =====================
-    # 1. 先检查根目录 images 是否存在，不存在就创建
-    if not os.path.exists("images"):
-        os.makedirs("images", exist_ok=True)
+# 从环境变量读取参数（和你的run.yml完全匹配）
+pdf_url = os.environ.get("PDF_URL")
+student_id = os.environ.get("STUDENT_ID")
 
-    # 2. 创建学生学号文件夹
-    output_dir = os.path.join("images", student_id)
-    os.makedirs(output_dir, exist_ok=True)
+# 自动检查并创建文件夹
+if not os.path.exists("images"):
+    os.makedirs("images")
 
-    # 下载 PDF
-    print(f"正在下载 PDF：{pdf_url}")
-    response = requests.get(pdf_url, timeout=60)
-    response.raise_for_status()
+save_dir = f"images/{student_id}"
+os.makedirs(save_dir, exist_ok=True)
 
-    # 转换 PDF 为图片
-    print("正在将 PDF 转换为图片...")
-    pages = convert_from_bytes(response.content, fmt="jpg")
+# 下载PDF
+print("正在下载PDF...")
+resp = requests.get(pdf_url, timeout=30)
+resp.raise_for_status()
 
-    # 逐页保存，命名：页数_宽_高.jpg
-    for i, page in enumerate(pages, 1):
-        w, h = page.size
-        filename = f"{i}_{w}_{h}.jpg"
-        save_path = os.path.join(output_dir, filename)
-        page.save(save_path, "JPEG")
-        print(f"已保存：{save_path}")
+# 转换PDF为图片
+print("正在转换PDF...")
+images = convert_from_bytes(resp.content, fmt="jpg")
 
-    print(f"\n✅ 转换完成！共 {len(pages)} 页")
+# 保存：页数_宽_高.jpg
+for idx, img in enumerate(images, 1):
+    w, h = img.size
+    filename = f"{idx}_{w}_{h}.jpg"
+    path = os.path.join(save_dir, filename)
+    img.save(path, "JPEG")
+    print(f"已保存: {path}")
 
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("使用方法：python convert.py <PDF_URL> <学生学号>")
-        sys.exit(1)
-
-    pdf_url = sys.argv[1]
-    student_id = sys.argv[2]
-    pdf_to_images_by_url(pdf_url, student_id)
+print(f"✅ 转换完成！共 {len(images)} 页")
